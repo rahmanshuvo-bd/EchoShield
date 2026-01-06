@@ -1,0 +1,16 @@
+# Android / Linux temp files
+*.txt
+*.log
+echo_out.txt
+
+# Python
+__pycache__/
+*.py[cod]
+
+# App Specific
+user_essentials.json
+logs/*
+!logs/.gitkeep
+
+# System
+.DS_Store

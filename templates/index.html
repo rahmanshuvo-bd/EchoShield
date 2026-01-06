@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --bg: #000; --card: #151515; --border: #262626; --text: #fff;
+            --red: #ff453a; --green: #32d74b; --blue: #0a84ff; --gray: #8e8e93; --gold: #ffd60a;
+        }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 15px; padding-bottom: 50px; }
+
+        .sticky-header { position: sticky; top: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(20px); z-index: 1000; margin: -15px -15px 15px -15px; padding: 15px; border-bottom: 1px solid var(--border); }
+        h1 { font-size: 22px; letter-spacing: -1px; margin: 0 0 12px 0; font-weight: 800; display: flex; align-items: center; justify-content: space-between; }
+        h1 span { color: var(--red); }
+
+        /* Live Unblocked List */
+        .unblocked-container { margin-bottom: 12px; font-size: 10px; color: var(--gray); overflow: hidden; }
+        .unblocked-scroll { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0; scrollbar-width: none; }
+        .unblocked-scroll::-webkit-scrollbar { display: none; }
+        .unblocked-tag { background: rgba(50, 215, 75, 0.1); color: var(--green); padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(50, 215, 75, 0.3); white-space: nowrap; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
+        .stat-card { background: var(--card); border: 1px solid var(--border); padding: 8px; border-radius: 12px; text-align: center; }
+        .stat-val { display: block; font-size: 16px; font-weight: 800; }
+        .stat-lbl { font-size: 8px; color: var(--gray); text-transform: uppercase; }
+
+        .actions-bar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; margin-bottom: 5px; }
+        .btn-action { white-space: nowrap; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer; }
+
+        input[type="text"] { width: 100%; padding: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; color: #fff; margin-bottom: 10px; font-size: 14px; box-sizing: border-box; outline: none; }
+        input[type="text"]:focus { border-color: var(--blue); }
+
+        .tabs { display: flex; background: var(--card); border-radius: 10px; padding: 3px; border: 1px solid var(--border); }
+        .tab { flex: 1; padding: 8px; text-align: center; font-size: 10px; font-weight: 700; border-radius: 7px; cursor: pointer; color: var(--gray); transition: 0.2s; }
+        .tab.active { background: #fff; color: #000; }
+
+        .app-card { background: var(--card); padding: 12px; border-radius: 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); transition: 0.3s; }
+        .app-card.is-blocked { border-left: 4px solid var(--red); }
+        .app-card.is-unblocked { border-left: 4px solid var(--green); }
+        
+        .pkg-title { font-size: 13px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 6px; }
+        .pkg-meta { font-size: 10px; font-family: monospace; color: var(--gray); margin-top: 3px; }
+        
+        .badge-essential { background: #ffeb3b; color: #000; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 4px; }
+        .essential-star { cursor: pointer; color: #444; font-size: 16px; }
+        .essential-star.active { color: var(--gold); }
+
+        .toggle-btn { padding: 8px 12px; border-radius: 10px; border: none; font-weight: 800; font-size: 10px; min-width: 85px; cursor: pointer; }
+        .btn-block-mode { background: #333; color: #fff; }
+        .btn-unblock-mode { background: var(--red); color: #fff; }
+
+        #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; gap: 10px; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="overlay">
+        <span style="font-size: 20px; font-weight: 800;">Executing Policy</span>
+        <small style="color: var(--gray);">Updating iptables chains...</small>
+    </div>
+
+    <div class="sticky-header">
+        <h1>ECHO<span>SHIELD</span> <small style="font-size: 10px; color: var(--gray);">v6.0</small></h1>
+
+        <div class="unblocked-container">
+            <div class="unblocked-scroll" id="live-unblocked">
+                </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card"><span class="stat-val" id="stat-total">0</span><span class="stat-lbl">Apps</span></div>
+            <div class="stat-card"><span class="stat-val" id="stat-blocked" style="color:var(--red)">0</span><span class="stat-lbl">Blocked</span></div>
+            <div class="stat-card"><span class="stat-val" id="stat-online" style="color:var(--green)">0</span><span class="stat-lbl">Online</span></div>
+        </div>
+
+        <div class="actions-bar">
+            <button onclick="globalAction('/apply-defaults', 'Apply Policy?')" class="btn-action">🪄 Smart Apply</button>
+            <button onclick="globalAction('/apply-defaults?mode=flush', 'Flush All?')" class="btn-action">🟢 Flush</button>
+            <button onclick="globalAction('/toggle-all?mode=block', 'Block All?')" class="btn-action" style="color:var(--red)">🚫 Block All</button>
+            <button onclick="location.href='/download-config'" class="btn-action">💾 Export</button>
+        </div>
+
+        <input type="text" id="search" placeholder="Search app name or UID..." onkeyup="filter()">
+
+        <div class="tabs">
+            <div class="tab active" onclick="setTab('all', this)">ALL</div>
+            <div class="tab" onclick="setTab('user', this)">USER</div>
+            <div class="tab" onclick="setTab('sys', this)">SYSTEM</div>
+            <div class="tab" onclick="setTab('blocked', this)">BLOCKED</div>
+        </div>
+    </div>
+
+    <div id="list">
+        {% for app in apps %}
+        <div class="app-card {{ 'is-blocked' if app.blocked else 'is-unblocked' }}"
+             data-pkg="{{ app.pkg }}"
+             data-uid="{{ app.uid }}"
+             data-sys="{{ 'true' if app.is_system else 'false' }}">
+            
+            <div class="app-info">
+                <p class="pkg-title">
+                    <span class="essential-star {{ 'active' if app.is_essential }}" 
+                          onclick="toggleEssential('{{ app.pkg }}', this)">{{ '★' if app.is_essential else '☆' }}</span>
+                    {{ app.pkg }}
+                    {% if app.is_essential %}<span class="badge-essential">ESSENTIAL</span>{% endif %}
+                </p>
+                <p class="pkg-meta">UID: {{ app.uid }} | {{ 'SYSTEM' if app.is_system else 'USER' }}</p>
+            </div>
+
+            <button class="toggle-btn {{ 'btn-unblock-mode' if app.blocked else 'btn-block-mode' }}"
+                    onclick="toggle('{{ app.pkg }}', {{ 'true' if app.blocked else 'false' }}, this)">
+                {{ 'UNBLOCK' if app.blocked else 'BLOCK' }}
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        let currentTab = 'all';
+
+        // Initialize UI components
+        window.onload = () => {
+            updateLiveStats();
+        };
+
+        function globalAction(url, msg) {
+            if(confirm(msg)) {
+                document.getElementById('overlay').style.display = 'flex';
+                fetch(url).then(() => location.reload());
+            }
+        }
+
+        function setTab(type, el) {
+            currentTab = type;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+            filter();
+        }
+
+        function filter() {
+            const query = document.getElementById('search').value.toLowerCase();
+            document.querySelectorAll('.app-card').forEach(card => {
+                const pkg = card.getAttribute('data-pkg').toLowerCase();
+                const uid = card.getAttribute('data-uid');
+                const isBlocked = card.classList.contains('is-blocked');
+                const isSys = card.getAttribute('data-sys') === 'true';
+
+                let tabMatch = (currentTab === 'all') ||
+                               (currentTab === 'blocked' && isBlocked) ||
+                               (currentTab === 'sys' && isSys) ||
+                               (currentTab === 'user' && !isSys);
+
+                let searchMatch = pkg.includes(query) || uid.includes(query);
+                card.classList.toggle('hidden', !(tabMatch && searchMatch));
+            });
+        }
+
+        function toggle(pkg, currentlyBlocked, btn) {
+            const card = btn.closest('.app-card');
+            const uid = card.getAttribute('data-uid');
+            const mode = currentlyBlocked ? 'off' : 'on';
+
+            btn.disabled = true;
+            btn.innerText = "...";
+
+            fetch(`/toggle?pkg=${pkg}&mode=${mode}&uid=${uid}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const isNowBlocked = (mode === 'on');
+                        card.classList.toggle('is-blocked', isNowBlocked);
+                        card.classList.toggle('is-unblocked', !isNowBlocked);
+                        
+                        btn.innerText = isNowBlocked ? 'UNBLOCK' : 'BLOCK';
+                        btn.className = `toggle-btn ${isNowBlocked ? 'btn-unblock-mode' : 'btn-block-mode'}`;
+                        btn.setAttribute('onclick', `toggle('${pkg}', ${isNowBlocked}, this)`);
+                        
+                        updateLiveStats();
+                    }
+                    btn.disabled = false;
+                });
+        }
+
+        function toggleEssential(pkg, el) {
+            const newState = !el.classList.contains('active');
+            fetch(`/toggle-essential?pkg=${pkg}&state=${newState}`)
+                .then(res => res.json())
+                .then(data => {
+                    if(data.success) {
+                        el.classList.toggle('active');
+                        el.innerText = newState ? '★' : '☆';
+                    }
+                });
+        }
+
+        function updateLiveStats() {
+            const cards = document.querySelectorAll('.app-card');
+            const blocked = document.querySelectorAll('.app-card.is-blocked').length;
+            const total = cards.length;
+            
+            document.getElementById('stat-total').innerText = total;
+            document.getElementById('stat-blocked').innerText = blocked;
+            document.getElementById('stat-online').innerText = total - blocked;
+
+            // Update scrolling unblocked list
+            const unblockedItems = Array.from(cards)
+                .filter(c => c.classList.contains('is-unblocked'))
+                .map(c => `<div class="unblocked-tag">${c.getAttribute('data-pkg').split('.').pop()}</div>`)
+                .join('');
+            document.getElementById('live-unblocked').innerHTML = unblockedItems || '<span style="color:var(--red)">No Apps Online</span>';
+        }
+    </script>
+</body>
+</html>
